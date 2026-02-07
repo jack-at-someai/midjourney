@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-mjlab - Generate isometric research lab Midjourney prompts via Claude.
+mjlab - Generate isometric research lab images via Claude + image gen APIs.
 
 Reads your context files (specs, notes, floor plans, ideas), sends them
-to Claude to synthesize an isometric bird's-eye-view Midjourney prompt
-in your chosen aesthetic (solarpunk, cyberpunk, steampunk, etc.).
+to Claude to synthesize a prompt, then generates images directly via
+OpenAI, Flux, Stability AI, and/or Ideogram. No Discord needed.
 
 Usage:
-    mjlab --files spec.md notes.txt --style solarpunk
-    mjlab --files lab_plan.md --style cyberpunk --acres 5
-    mjlab --files *.md --style steampunk --acres 2 --focus "biotech wing"
-    mjlab --style solarpunk --acres 3 --describe "quantum computing lab with greenhouses"
+    mjlab --style solarpunk --describe "quantum computing lab" --engine openai
+    mjlab --files spec.md --style cyberpunk --engine all
+    mjlab --files *.md --style steampunk --engine flux --acres 5
+    mjlab --style solarpunk --describe "biotech lab" --engine clipboard
 """
 
 import argparse
@@ -172,13 +172,16 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Styles: solarpunk (default), cyberpunk, steampunk, biopunk, lunarpunk, dieselpunk, atompunk
+Engines: clipboard (default), openai, flux, stability, ideogram, all
 
 Examples:
-  mjlab --files spec.md notes.txt --style solarpunk
-  mjlab --files *.md --style cyberpunk --acres 5 --focus "quantum wing"
-  mjlab --style steampunk --acres 2 --describe "biotech lab with clock tower"
+  mjlab --style solarpunk --describe "quantum computing lab" --engine openai
+  mjlab --files spec.md --style cyberpunk --engine all
+  mjlab --files *.md --style steampunk --engine flux --acres 5
+  mjlab --style solarpunk --describe "biotech lab" --engine clipboard
   mjlab --files plan.md --style biopunk --stylize 800 --chaos 30
   mjlab --list-styles
+  mjlab --list-engines
         """,
     )
 
@@ -199,9 +202,25 @@ Examples:
     parser.add_argument("--raw", action="store_true", help="Print only the raw MJ prompt")
     parser.add_argument("--prompt-only", action="store_true", help="Show Claude's output without running mj")
     parser.add_argument("--list-styles", action="store_true", help="List available punk styles")
+    parser.add_argument("--engine", "-e", default="clipboard",
+                        choices=["clipboard", "openai", "flux", "stability", "ideogram", "all"],
+                        help="Image generation engine (default: clipboard)")
+    parser.add_argument("--list-engines", action="store_true", help="List available engines and API key status")
     parser.add_argument("--save-template", default=None, help="Save the result as an mj template with this name")
 
     args = parser.parse_args()
+
+    if args.list_engines:
+        from engines import ENGINES, ENGINE_KEYS
+        print(f"\n  {'Engine':<14} {'API Key Env Var':<24} {'Status'}")
+        print(f"  {'-' * 14} {'-' * 24} {'-' * 10}")
+        print(f"  {'clipboard':<14} {'(none)':<24} {'always available'}")
+        for name in sorted(ENGINES.keys()):
+            key_var = ENGINE_KEYS[name]
+            status = "set" if os.environ.get(key_var) else "NOT SET"
+            print(f"  {name:<14} {key_var:<24} {status}")
+        print()
+        return
 
     if args.list_styles:
         print(f"\n  {'Style':<14} {'Vibe'}")
@@ -253,8 +272,26 @@ Examples:
                 print(mj_prompt)
             else:
                 print(f"\n{mj_prompt}\n")
+        elif args.engine != "clipboard":
+            # Generate images directly via API
+            from engines import generate, generate_all
+            label = f"lab_{style_name}_{i}" if count > 1 else f"lab_{style_name}"
+            if args.engine == "all":
+                results = generate_all(mj_prompt, ar=args.ar, label_prefix=label)
+                if results:
+                    print(f"\n  Generated {len(results)} image(s):", file=sys.stderr)
+                    for eng, path in results.items():
+                        print(f"    [{eng}] {path}", file=sys.stderr)
+                else:
+                    print("  No images generated. Check API keys with --list-engines", file=sys.stderr)
+            else:
+                path = generate(args.engine, mj_prompt, ar=args.ar, label=label)
+                if path:
+                    print(f"\n  Generated: {path}", file=sys.stderr)
+                else:
+                    print(f"  Generation failed. Check API key with --list-engines", file=sys.stderr)
         else:
-            # Build mj args
+            # Default: clipboard mode via mj.py
             extra = []
             if args.chaos is not None:
                 extra += ["--chaos", str(args.chaos)]

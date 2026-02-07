@@ -1,13 +1,13 @@
 # Midjourney Tools
 
-Manual coded tools for accessing and interacting with Midjourney. Built to handle prompt generation, image retrieval, job management, and other Midjourney workflows without relying on third-party wrappers.
+Manual coded tools for AI image generation. Claude synthesizes prompts from your context files, then generates images directly via OpenAI, Flux, Stability AI, and Ideogram. No Discord needed.
 
 ## Setup
 
-### 1. Install dependency
+### 1. Install dependencies
 
 ```
-pip install anthropic
+pip install anthropic openai requests
 ```
 
 ### 2. Get your Anthropic API key
@@ -18,13 +18,22 @@ pip install anthropic
 4. Click **Create Key**, give it a name like "midjourney-tools"
 5. Copy the key (starts with `sk-ant-api03-...`)
 
-### 3. Set the key permanently
+### 3. Set API keys
 
-```
+```bash
+# Required: Claude for prompt generation
 setx ANTHROPIC_API_KEY sk-ant-api03-your-key-here
+
+# Image generation engines (set whichever you want to use)
+setx OPENAI_API_KEY sk-...          # https://platform.openai.com/api-keys
+setx BFL_API_KEY ...                # https://dashboard.bfl.ai
+setx STABILITY_API_KEY sk-...       # https://platform.stability.ai
+setx IDEOGRAM_API_KEY ...           # https://ideogram.ai (Settings -> API)
 ```
 
-Then **restart your terminal** so the env var takes effect.
+Then **restart your terminal** so the env vars take effect.
+
+Check which engines are ready: `mjlab --list-engines`
 
 ### 4. Verify
 
@@ -39,27 +48,26 @@ Both `mj` and `mjlab` are on PATH.
 
 ## The Pipeline
 
-The core idea: funnel all your references, context, and ideas through one command that produces a ready-to-paste Midjourney prompt.
+The core idea: funnel all your references, context, and ideas through one command that produces images.
 
 ```
-                                    +------------------+
-  your files ----+                  |                  |
-  (specs, notes, |                  |     Claude       |
-   floor plans,  +---> mjlab -----> | (synthesizes an  |----> /imagine prompt: ...
-   research docs)|       |         |  isometric MJ    |        (copied to clipboard,
-                 |       |         |  prompt from      |         paste into Discord)
-  --style        +-------+         |  your context)   |
-  --acres                          |                  |
-  --focus                          +------------------+
+                                    +------------------+     +------------------+
+  your files ----+                  |                  |     |  Image Engines   |
+  (specs, notes, |                  |     Claude       |     |                  |
+   floor plans,  +---> mjlab -----> | (synthesizes a   |---->|  OpenAI          |---> output/*.png
+   research docs)|       |         |  detailed prompt  |     |  Flux            |
+                 |       |         |  from your        |     |  Stability AI    |
+  --style        +-------+         |  context)         |     |  Ideogram        |
+  --engine                         |                  |     |                  |
+  --acres                          +------------------+     +------------------+
   --describe
 ```
 
 **Step by step:**
-1. You point `mjlab` at your files and pick a style
+1. You point `mjlab` at your files, pick a style and an engine
 2. Claude reads everything and generates a detailed isometric lab prompt
-3. The prompt gets piped through `mj` which injects `--ar`, `--stylize`, `--v`, etc.
-4. The final `/imagine prompt: ...` is copied to your clipboard
-5. Paste into Midjourney on Discord
+3. The prompt is sent to your chosen image generation engine(s)
+4. Images are saved to `output/`
 
 ---
 
@@ -111,30 +119,33 @@ mj delete cyberpunk
 
 ---
 
-## mjlab -- AI-Powered Research Lab Prompt Generator
+## mjlab -- AI-Powered Research Lab Image Generator
 
-Feed context files (specs, notes, floor plans) to Claude, which synthesizes an isometric bird's-eye-view Midjourney prompt for a research lab campus in your chosen punk aesthetic.
+Feed context files (specs, notes, floor plans) to Claude, which synthesizes an isometric bird's-eye-view prompt for a research lab campus in your chosen punk aesthetic, then generates images directly via API.
 
 ### Quick Examples
 
 ```bash
-# Solarpunk lab from a description (no files needed)
-mjlab --style solarpunk --describe "quantum computing lab with rooftop greenhouses and a central courtyard"
+# Generate a solarpunk lab image via OpenAI
+mjlab --style solarpunk --describe "quantum computing lab" --engine openai
 
-# Feed it your actual spec files
-mjlab --files lab-spec.md budget.md floor-plan.txt --style solarpunk --acres 5
+# Generate with ALL engines that have API keys set
+mjlab --files spec.md --style cyberpunk --engine all
 
-# Cyberpunk, 10-acre campus, emphasize a specific wing
-mjlab --files *.md --style cyberpunk --acres 10 --focus "AI research wing"
+# Use Flux for a steampunk campus
+mjlab --files *.md --style steampunk --engine flux --acres 5
 
-# Generate 3 different takes and bump up the stylize
-mjlab --files notes.md --style biopunk --variations 3 --stylize 800 --chaos 30
+# Clipboard mode (original behavior, for pasting into Discord)
+mjlab --style solarpunk --describe "biotech lab" --engine clipboard
 
-# Just see what Claude generates without piping to mj
+# Just see what Claude generates without generating images
 mjlab --style steampunk --describe "clockwork biotech lab" --prompt-only
 
-# Save the result as a reusable mj template for later
-mjlab --files spec.md --style solarpunk --save-template my-lab
+# Generate 3 variations across all engines
+mjlab --files notes.md --style biopunk --variations 3 --engine all
+
+# Check which engines are ready
+mjlab --list-engines
 
 # List all available punk styles
 mjlab --list-styles
@@ -152,10 +163,22 @@ mjlab --list-styles
 | **dieselpunk** | WWII-era industrial complex, brutalist efficiency, riveted steel plate |
 | **atompunk** | 1950s space-age optimism, Googie architecture, chrome and pastels |
 
+### Engines
+
+| Engine | Model | API Key |
+|---|---|---|
+| **openai** | gpt-image-1 | `OPENAI_API_KEY` |
+| **flux** | flux-pro-1.1 | `BFL_API_KEY` |
+| **stability** | sd3.5-large | `STABILITY_API_KEY` |
+| **ideogram** | Ideogram 3.0 | `IDEOGRAM_API_KEY` |
+| **clipboard** | (none) | -- |
+| **all** | all with keys set | -- |
+
 ### All Flags
 
 | Flag | Default | Description |
 |---|---|---|
+| `--engine` / `-e` | clipboard | Image generation engine |
 | `--files` / `-f` | -- | Context files (specs, notes, plans). Supports globs. |
 | `--style` / `-s` | solarpunk | Punk aesthetic |
 | `--acres` / `-a` | 3 | Campus size in acres |
@@ -163,12 +186,13 @@ mjlab --list-styles
 | `--describe` / `-d` | -- | Freeform description (use instead of or alongside files) |
 | `--variations` | 1 | Re-roll Claude N times for different takes |
 | `--save-template` | -- | Save the result as a reusable `mj` template |
-| `--prompt-only` | -- | Show Claude's output without piping to `mj` |
+| `--prompt-only` | -- | Show Claude's output without generating images |
 | `--raw` | -- | Print bare prompt text only |
 | `--model` | claude-sonnet-4-5 | Claude model to use |
-| `--no-copy` | -- | Don't auto-copy to clipboard |
+| `--list-engines` | -- | Show available engines and API key status |
+| `--list-styles` | -- | Show available punk styles |
 
-Plus all standard MJ params: `--ar`, `--v`, `--stylize`, `--chaos`, `--seed`, `--tile`.
+Plus MJ params (for clipboard mode): `--ar`, `--v`, `--stylize`, `--chaos`, `--seed`, `--tile`.
 
 ---
 
