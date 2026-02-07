@@ -196,6 +196,16 @@ Plus MJ params (for clipboard mode): `--ar`, `--v`, `--stylize`, `--chaos`, `--s
 
 ---
 
+## TODO
+
+- [ ] Set image engine API keys:
+  - `setx OPENAI_API_KEY sk-...` — [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+  - `setx BFL_API_KEY ...` — [dashboard.bfl.ai](https://dashboard.bfl.ai)
+  - `setx STABILITY_API_KEY sk-...` — [platform.stability.ai](https://platform.stability.ai)
+  - `setx IDEOGRAM_API_KEY ...` — [ideogram.ai](https://ideogram.ai) (Settings -> API)
+- [ ] Test each engine: `mjlab --style solarpunk --describe "quantum computing lab" --engine openai`
+- [ ] Verify with `mjlab --list-engines`
+
 ## Planned
 
 - **Image Retrieval** -- Fetch and organize generated images by job ID
